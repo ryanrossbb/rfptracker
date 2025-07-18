@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>BrokersBloc RFP Tracker</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      background: #f9f9f9;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    #auth-screen {
+      max-width: 400px;
+      margin: 100px auto;
+      text-align: center;
+    }
+    input {
+      padding: 10px;
+      width: 250px;
+      font-size: 16px;
+      margin: 10px 0;
+      display: block;
+      text-align: center;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+    .tracker {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 10px;
+    }
+    .step {
+      flex: 1;
+      padding: 10px;
+      text-align: center;
+      background: #ccc;
+      color: #555;
+      margin-right: 5px;
+      border-radius: 20px;
+      font-size: 14px;
+    }
+    .step.active {
+      background: #4caf50;
+      color: white;
+    }
+    .step:last-child {
+      margin-right: 0;
+    }
+    .rfp-container {
+      max-width: 900px;
+      margin: 2rem auto;
+      border-bottom: 1px solid #ddd;
+      padding-bottom: 1rem;
+    }
+    .countdown {
+      text-align: center;
+      font-weight: bold;
+      color: crimson;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="auth-screen">
+    <h1>Access Your RFP Tracker</h1>
+    <input id="email-input" type="email" placeholder="Enter your email" />
+    <input id="pin-input" type="password" maxlength="6" placeholder="Enter your PIN" />
+    <button onclick="verifyBroker()">Access Tracker</button>
+    <p id="auth-error" style="color: red; display: none;">Invalid email or PIN. Please try again.</p>
+  </div>
+
+  <div id="trackers" style="display:none;">
+    <h1 id="tracker-title">RFP Tracker</h1>
+    <button onclick="signOut()" style="margin: 20px auto; display: block;">Sign Out</button>
+    <div id="tracker-list"></div>
+  </div>
+
+  <script>
+    const STAGES = [
+      "Census Received",
+      "Processing",
+      "Engaging Carriers",
+      "Preparing Quote",
+      "Quote Returned"
+    ];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      const email = sessionStorage.getItem('email');
+      const pin = sessionStorage.getItem('pin');
+      const broker = sessionStorage.getItem('brokerName');
+
+      if (email && pin && broker) {
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('trackers').style.display = 'block';
+        document.getElementById('tracker-title').textContent = `RFP Tracker for ${broker}`;
+        fetchProjects(broker);
+      }
+    });
+
+    async function verifyBroker() {
+      const email = document.getElementById('email-input').value.trim();
+      const pin = document.getElementById('pin-input').value.trim();
+
+      if (!email || !pin) return;
+
+      try {
+        const res = await fetch(`/api/verify-broker?email=${encodeURIComponent(email)}&pin=${encodeURIComponent(pin)}`);
+        const data = await res.json();
+
+        if (!res.ok || !data.brokerName) {
+          document.getElementById('auth-error').style.display = 'block';
+          return;
+        }
+
+        const broker = data.brokerName;
+
+        sessionStorage.setItem('email', email);
+        sessionStorage.setItem('pin', pin);
+        sessionStorage.setItem('brokerName', broker);
+
+        document.getElementById('auth-screen').style.display = 'none';
+        document.getElementById('trackers').style.display = 'block';
+        document.getElementById('tracker-title').textContent = `RFP Tracker for ${broker}`;
+        fetchProjects(broker);
+
+      } catch (error) {
+        console.error("Verification failed:", error);
+        document.getElementById('auth-error').style.display = 'block';
+      }
+    }
+
+    async function fetchProjects(brokerName) {
+      try {
+        const res = await fetch(`/api/projects?broker=${encodeURIComponent(brokerName)}`);
+        const projects = await res.json();
+        renderTrackers(projects, brokerName);
+      } catch (err) {
+        console.error("Failed to fetch projects:", err);
+      }
+    }
+
+    function renderTrackers(projects, brokerName) {
+      const container = document.getElementById('tracker-list');
+      container.innerHTML = '';
+
+      if (!projects.length) {
+        container.innerHTML = `<p>No RFPs found for ${brokerName}.</p>`;
+        return;
+      }
+
+      projects.forEach(project => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'rfp-container';
+
+        const title = document.createElement('h2');
+        title.textContent = project.projectName;
+        wrapper.appendChild(title);
+
+        const countdown = document.createElement('p');
+        countdown.className = 'countdown';
+        wrapper.appendChild(countdown);
+
+        let submissionTime = project.submissionTime;
+        if (!submissionTime) {
+          countdown.textContent = "No submission time provided";
+        } else {
+          function updateCountdown() {
+            const deadline = new Date(new Date(submissionTime).getTime() + 24 * 60 * 60 * 1000);
+            const now = new Date();
+            const diff = deadline - now;
+
+            if (diff <= 0) {
+              countdown.textContent = "⛔ Time Expired";
+              countdown.style.color = 'gray';
+              clearInterval(timer);
+              return;
+            }
+
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+            countdown.textContent = `⏳ Time Left: ${hours}h ${minutes}m ${seconds}s`;
+          }
+
+          const timer = setInterval(updateCountdown, 1000);
+          updateCountdown();
+        }
+
+        const tracker = document.createElement('div');
+        tracker.className = 'tracker';
+
+        STAGES.forEach((stageName, i) => {
+          const step = document.createElement('div');
+          step.className = 'step';
+          if (i <= project.stageIndex) step.classList.add('active');
+          step.textContent = stageName;
+          tracker.appendChild(step);
+        });
+
+        wrapper.appendChild(tracker);
+        container.appendChild(wrapper);
+      });
+    }
+
+    function signOut() {
+      sessionStorage.clear();
+      location.reload();
+    }
+  </script>
+</body>
+</html>
