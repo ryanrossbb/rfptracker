@@ -10,11 +10,10 @@ const app = express();
 const PORT = 3000;
 
 app.use(cors());
-app.use(express.static(path.join(__dirname))); // Serve static frontend files (like index.html)
+app.use(express.static(path.join(__dirname))); // Serve static files like index.html
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_TOKEN }).base(process.env.AIRTABLE_BASE);
 
-// Define stages and their index
 const stageMap = {
   "Census Received": 0,
   "Processing": 1,
@@ -23,7 +22,8 @@ const stageMap = {
   "Quote Returned": 4
 };
 
-// ✅ Verify broker by email and PIN
+console.log(record.fields);
+
 app.get('/api/verify-broker', async (req, res) => {
   const email = req.query.email;
   const pin = req.query.pin;
@@ -42,7 +42,7 @@ app.get('/api/verify-broker', async (req, res) => {
       return res.status(403).json({ error: "Invalid email or PIN" });
     }
 
-    const brokerName = records[0].fields["Broker Name"];
+    const brokerName = records[0].fields["Userame"];
     return res.json({ brokerName });
 
   } catch (err) {
@@ -51,29 +51,27 @@ app.get('/api/verify-broker', async (req, res) => {
   }
 });
 
-// ✅ Fetch all RFPs for a given broker
 app.get('/api/projects', async (req, res) => {
   const brokerName = req.query.broker;
-  if (!brokerName) return res.status(400).json({ error: "Missing broker name" });
+  if (!brokerName) return res.status(400).json({ error: "Missing Userame" });
 
   try {
     const records = await base(process.env.AIRTABLE_TABLE).select({
-      filterByFormula: `{Broker Name} = '${brokerName}'`
+      filterByFormula: `{Userame} = '${brokerName}'`
     }).all();
 
-    // 🔍 Debug log
-    records.forEach(record => {
-      console.log("Returned fields:", record.fields);
-    });
-
     const results = records
-      .filter(record => record.fields["Stage"] && record.fields["RFP Name"])
+      .filter(r => r.fields["Stage"] && r.fields["RFP Name"])
+      records.forEach(record => {
+  console.log("Returned fields:", record.fields);
+});
+
       .map(record => ({
         projectName: record.fields["RFP Name"],
         stage: record.fields["Stage"],
         stageIndex: stageMap[record.fields["Stage"]],
         timeRemaining: record.fields["Time Remaining"] || "N/A",
-        submissionTime: record.fields["Created"] || null // Make sure this matches Airtable field name
+        submissionTime: record.fields["created"] || null
       }));
 
     res.json(results);
@@ -84,7 +82,6 @@ app.get('/api/projects', async (req, res) => {
   }
 });
 
-// ✅ Start the server
 app.listen(PORT, () => {
   console.log(`✅ Server running at http://localhost:${PORT}`);
 });
