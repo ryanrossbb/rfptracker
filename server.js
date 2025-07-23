@@ -3,14 +3,20 @@ const express = require('express');
 const Airtable = require('airtable');
 const cors = require('cors');
 const path = require('path');
+const multer = require('multer');
+const fs = require('fs');
 
 console.log("🔥 server.js started");
 
 const app = express();
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.static(path.join(__dirname))); // Serve static files like index.html
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+const upload = multer({ dest: 'uploads/' }); // save uploaded files temporarily
 
 const base = new Airtable({ apiKey: process.env.AIRTABLE_TOKEN }).base(process.env.AIRTABLE_BASE);
 
@@ -22,35 +28,41 @@ const stageMap = {
   "Quote Returned": 4
 };
 
-console.log(record.fields);
-
+// ✅ LOGIN ROUTE
 app.get('/api/verify-broker', async (req, res) => {
   const email = req.query.email;
   const pin = req.query.pin;
+  const username = req.query.username;
 
-  if (!email || !pin) {
-    return res.status(400).json({ error: "Missing email or PIN" });
+  if (!email || !pin || !username) {
+    return res.status(400).json({ error: "Missing email, PIN, or username" });
   }
+
+  console.log("Received login:", { email, pin, username });
 
   try {
     const records = await base(process.env.AIRTABLE_BROKER_TABLE).select({
-      filterByFormula: `AND(LOWER(TRIM({Email})) = LOWER('${email.trim()}'), TRIM({PIN}) = '${pin.trim()}')`,
+      filterByFormula: `AND(
+        LOWER(TRIM({Email})) = LOWER('${email.trim()}'),
+        TRIM({PIN}) = '${pin.trim()}',
+        TRIM({Username}) = '${username.trim()}'
+      )`,
       maxRecords: 1
     }).firstPage();
 
     if (!records.length) {
-      return res.status(403).json({ error: "Invalid email or PIN" });
+      return res.status(403).json({ error: "Invalid login credentials" });
     }
 
-    const brokerName = records[0].fields["Username"];
-    return res.json({ brokerName });
+    return res.json({ brokerName: username });
 
   } catch (err) {
     console.error("❌ Broker verification failed:", err);
-    res.status(500).json({ error: "Server error" });
+    res.status(500).json({ error: "Server error during login" });
   }
 });
 
+// ✅ GET PROJECTS
 app.get('/api/projects', async (req, res) => {
   const brokerName = req.query.broker;
   if (!brokerName) return res.status(400).json({ error: "Missing Username" });
@@ -60,12 +72,13 @@ app.get('/api/projects', async (req, res) => {
       filterByFormula: `{Username} = '${brokerName}'`
     }).all();
 
+    console.log("Returned fields:");
+    records.forEach(record => {
+      console.log(record.fields);
+    });
+
     const results = records
       .filter(r => r.fields["Stage"] && r.fields["RFP Name"])
-      records.forEach(record => {
-  console.log("Returned fields:", record.fields);
-});
-
       .map(record => ({
         projectName: record.fields["RFP Name"],
         stage: record.fields["Stage"],
@@ -79,6 +92,38 @@ app.get('/api/projects', async (req, res) => {
   } catch (err) {
     console.error("❌ Airtable query failed:", err);
     res.status(500).json({ error: "Airtable query failed" });
+  }
+});
+
+// ✅ UPLOAD RFP
+app.post('/api/upload-rfp', upload.single('file'), async (req, res) => {
+  const { username, groupName } = req.body;
+  const file = req.file;
+
+  if (!username || !groupName || !file) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+    // You can replace this with real file hosting later (e.g., S3 or Cloudinary)
+    const record = await base(process.env.AIRTABLE_TABLE).create({
+      "Username": username,
+      "RFP Name": groupName,
+      "Stage": "Census Received",
+      "Time Remaining": "TBD",
+      "File Upload": [
+        {
+          url: `https://yourdomain.com/uploads/${file.filename}`,
+          filename: file.originalname
+        }
+      ]
+    });
+
+    res.json({ success: true, recordId: record.id });
+
+  } catch (err) {
+    console.error("❌ Error uploading RFP:", err);
+    res.status(500).json({ error: "Upload failed" });
   }
 });
 
