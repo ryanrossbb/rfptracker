@@ -42,7 +42,7 @@ app.get('/api/verify-broker', async (req, res) => {
       return res.status(403).json({ error: "Invalid email or PIN" });
     }
 
-    const brokerName = records[0].fields["Userame"];
+    const brokerName = records[0].fields["Username"];
     return res.json({ brokerName });
 
   } catch (err) {
@@ -53,11 +53,11 @@ app.get('/api/verify-broker', async (req, res) => {
 
 app.get('/api/projects', async (req, res) => {
   const brokerName = req.query.broker;
-  if (!brokerName) return res.status(400).json({ error: "Missing Userame" });
+  if (!brokerName) return res.status(400).json({ error: "Missing Username" });
 
   try {
     const records = await base(process.env.AIRTABLE_TABLE).select({
-      filterByFormula: `{Userame} = '${brokerName}'`
+      filterByFormula: `{Username} = '${brokerName}'`
     }).all();
 
     const results = records
