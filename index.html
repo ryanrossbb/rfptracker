@@ -23,6 +23,7 @@
   <!-- LOGIN FORM -->
   <div id="login-section" class="section">
     <h2>Broker Login</h2>
+    <input type="text" id="username" placeholder="Username" />
     <input type="email" id="email" placeholder="Email" />
     <input type="text" id="pin" placeholder="PIN" />
     <button onclick="verifyBroker()">Access Portal</button>
@@ -45,6 +46,7 @@
     <div class="section">
       <h3>Your Submitted RFPs</h3>
       <div id="tracker-container"></div>
+      <button onclick="loadDashboard()">🔄 Refresh Tracker</button>
     </div>
 
     <button onclick="logout()">Log Out</button>
@@ -52,18 +54,19 @@
 
   <script>
     async function verifyBroker() {
+      const username = document.getElementById("username").value;
       const email = document.getElementById("email").value;
       const pin = document.getElementById("pin").value;
 
-      const res = await fetch(`/api/verify-broker?email=${encodeURIComponent(email)}&pin=${encodeURIComponent(pin)}`);
+      const res = await fetch(`/api/verify-broker?email=${encodeURIComponent(email)}&pin=${encodeURIComponent(pin)}&username=${encodeURIComponent(username)}`);
       const data = await res.json();
 
-      if (res.ok && data.brokerName) {
-        sessionStorage.setItem("brokerName", data.brokerName);
+      if (res.ok) {
+        sessionStorage.setItem("brokerName", username);
         sessionStorage.setItem("brokerEmail", email);
         loadDashboard();
       } else {
-        document.getElementById("login-error").textContent = "Invalid email or PIN. Please try again.";
+        document.getElementById("login-error").textContent = "Invalid email, PIN, or username. Please try again.";
       }
     }
 
@@ -95,15 +98,37 @@
           }
 
           projects.forEach(proj => {
+            const stages = ["Census Received", "Processing", "Engaging Carriers", "Preparing Quote", "Quote Returned"];
+            const currentIndex = proj.stageIndex || 0;
+
+            const stageHTML = stages.map((stage, i) => `
+              <div style="
+                display: inline-block;
+                padding: 6px 10px;
+                margin-right: 8px;
+                border-radius: 12px;
+                background-color: ${i <= currentIndex ? '#28a745' : '#ccc'};
+                color: white;
+                font-weight: ${i === currentIndex ? 'bold' : 'normal'};
+                font-size: 12px;
+              ">
+                ${stage}
+              </div>
+            `).join('');
+
             const card = document.createElement("div");
-            card.style.padding = "10px";
+            card.style.padding = "12px";
             card.style.border = "1px solid #ddd";
-            card.style.marginBottom = "12px";
+            card.style.marginBottom = "16px";
+            card.style.borderRadius = "8px";
+            card.style.backgroundColor = "#f9f9f9";
+
             card.innerHTML = `
-              <strong>${proj.projectName}</strong><br/>
-              Stage: ${proj.stage}<br/>
-              Time Remaining: ${proj.timeRemaining || "N/A"}<br/>
+              <strong>${proj.projectName}</strong><br/><br/>
+              ${stageHTML}<br/><br/>
+              <em>Time Remaining:</em> ${proj.timeRemaining || "N/A"}<br/>
             `;
+
             container.appendChild(card);
           });
         });
