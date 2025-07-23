@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>BrokersBloc Portal 2</title>
+  <title>BrokersBloc Portal</title>
   <style>
     body {
       font-family: sans-serif;
@@ -81,11 +81,9 @@
 
       document.getElementById("welcome-msg").textContent = `Welcome, ${brokerName}`;
 
-      // Set Airtable Form URL with prefilled info
       const formUrl = `https://airtable.com/appTl5b0TOB6Sh8N5/tbl1zRdsoor73QLqb/viwnW5EImflhH52T2?prefill_Username=${encodeURIComponent(brokerName)}&prefill_Email=${encodeURIComponent(email)}`;
       document.getElementById("rfp-form").src = formUrl;
 
-      // Load tracker data
       fetch(`/api/projects?broker=${encodeURIComponent(brokerName)}`)
         .then(res => res.json())
         .then(projects => {
@@ -139,7 +137,6 @@
       location.reload();
     }
 
-    // Auto-load if already logged in
     if (sessionStorage.getItem("brokerName")) {
       loadDashboard();
     }
