@@ -12,10 +12,17 @@
     }
     .hidden { display: none; }
     .section { margin-bottom: 40px; }
-    iframe {
-      width: 100%;
+    button {
+      padding: 10px 16px;
+      background-color: #007bff;
+      color: white;
       border: none;
-      border-radius: 8px;
+      border-radius: 6px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
     }
   </style>
 </head>
@@ -36,10 +43,10 @@
       <h2 id="welcome-msg"></h2>
     </div>
 
-    <!-- FORM -->
+    <!-- SUBMIT BUTTON -->
     <div class="section">
       <h3>Submit a New RFP</h3>
-      <iframe id="rfp-form" height="700"></iframe>
+      <button onclick="openRfpForm()">📝 Open RFP Form</button>
     </div>
 
     <!-- TRACKER -->
@@ -64,10 +71,25 @@
       if (res.ok) {
         sessionStorage.setItem("brokerName", username);
         sessionStorage.setItem("brokerEmail", email);
+        sessionStorage.setItem("brokerPin", pin);
         loadDashboard();
       } else {
         document.getElementById("login-error").textContent = "Invalid email, PIN, or username. Please try again.";
       }
+    }
+
+    function openRfpForm() {
+      const username = sessionStorage.getItem("brokerName");
+      const email = sessionStorage.getItem("brokerEmail");
+      const pin = sessionStorage.getItem("brokerPin");
+
+      if (!username || !email || !pin) {
+        alert("Missing session info. Please log in again.");
+        return;
+      }
+
+      const url = `https://airtable.com/appTl5b0TOB6Sh8N5/pagd8oOz2RO9zbYGb/form?prefill_Username=${encodeURIComponent(username)}&prefill_Email=${encodeURIComponent(email)}&prefill_PIN=${encodeURIComponent(pin)}`;
+      window.open(url, "_blank");
     }
 
     function loadDashboard() {
@@ -80,9 +102,6 @@
       document.getElementById("dashboard-section").classList.remove("hidden");
 
       document.getElementById("welcome-msg").textContent = `Welcome, ${brokerName}`;
-
-      const formUrl = `https://airtable.com/appTl5b0TOB6Sh8N5/tbl1zRdsoor73QLqb/viwnW5EImflhH52T2?prefill_Username=${encodeURIComponent(brokerName)}&prefill_Email=${encodeURIComponent(email)}`;
-      document.getElementById("rfp-form").src = formUrl;
 
       fetch(`/api/projects?broker=${encodeURIComponent(brokerName)}`)
         .then(res => res.json())
@@ -143,3 +162,4 @@
   </script>
 </body>
 </html>
+
